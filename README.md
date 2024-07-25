@@ -6,6 +6,12 @@
 Not everyone has a Wooting or the new Razer keyboard. So why not make it available for everyone?
 This might not work on valorant and may get you banned.
 
+### Q: I want the wooting style of SOCD / Snap Tap.
+A: Use the AHK file in that case.
+
+### Q: I want the Razer style of SOCD / Snap Tap.
+A: Use the python OBS script or EXE in that case.
+
 ### Q: How do I install this? 
 A: To install this download the file and add it to ```C:\Program Files\obs-studio\data\obs-plugins\frontend-tools\scripts```.
 However not everyone might have it installed in the C: drive. You will need to find your OBS installation.
