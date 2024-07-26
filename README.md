@@ -22,7 +22,7 @@ A: Start recording or enable replay buffer.
 ### Q: I don't want to use OBS to get SOCD. What is my alternative?
 A: Use the AHK script included however stuff like that might even have a higher risk of bans. Can also use the exe.
 
-![obs-file](https://cdn.discordapp.com/attachments/1039742897827889232/1266057565469675590/image.png?ex=66a3c37d&is=66a271fd&hm=374e6f0446dbfcb96e9c82a4d0629a3418f6459e18fb0f6cab2d2dcfded2da0f&)
+![obs-file](https://i.imgur.com/Mj7D3Er.png)
 
 
 https://github.com/user-attachments/assets/f1e1c2d9-cec1-409e-8840-de8661f83dc9
