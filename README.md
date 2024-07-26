@@ -23,18 +23,21 @@ This might not work on **Valorant** and may get you **banned**.
 ![48c145_479_V3A](https://github.com/user-attachments/assets/b9d98a0e-bcec-4720-815a-03f6554c4416)
 
 ### Q: I want the wooting style of SOCD / Snap Tap.
-A: Use the EXE with option 1 enabled or the AHK file. 
+**A:** Use the EXE with option 1 enabled or the AHK file. 
 
 ### Q: I want the Razer style of SOCD / Snap Tap.
-A: Use the python OBS script or EXE with option 2 in that case.
+**A:** Use the python OBS script or EXE with option 2 in that case.
+
+### Q: Did you take code from [SnapKey](https://github.com/cafali/SnapKey) to add to the Wooting Style of SOCD?
+**A: **Yes I did.
 
 ## A script that you add to OBS that that enables SOCD / Snap Tap for you.
 ### Q: How do I install this in OBS Studio? 
-A: To install this download the file and add it to ```C:\Program Files\obs-studio\data\obs-plugins\frontend-tools\scripts```.
+**A:** To install this download the file and add it to ```C:\Program Files\obs-studio\data\obs-plugins\frontend-tools\scripts```.
 However not everyone might have it installed in the C: drive. You will need to find your OBS installation.
 
 ### Q: How do I enable this?
-A: Start recording or enable replay buffer.
+**A:** Start recording or enable replay buffer.
 
 ![obs-file](https://i.imgur.com/Mj7D3Er.png)
 
