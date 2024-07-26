@@ -5,6 +5,7 @@
 Without it if you were to move to the right while holding down the left key it would stop the player.
 
 With **Global SOCD** if you were to move in the opposite direction of your current movement it will do it successfully instead of stopping.
+
 https://github.com/user-attachments/assets/f1e1c2d9-cec1-409e-8840-de8661f83dc9
 
 ### How do I get Snap Tap / SOCD on my normal keyboard?
