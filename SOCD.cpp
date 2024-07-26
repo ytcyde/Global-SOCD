@@ -19,121 +19,24 @@ struct KeyState
     bool pressed = false;
 };
 
-// Global variables for Code 1
-int keyA_code = 'A'; // Default to 'A'
-int keyD_code = 'D'; // Default to 'D'
+// Global variables
+int keyA_code = 'A';
+int keyD_code = 'D';
 unordered_map<int, KeyState> keyStates;
 int activeKey = 0;
 int previousKey = 0;
 HHOOK hHook = NULL;
 NOTIFYICONDATA nid;
-
-// Global variables for Code 2
-bool aPressed = false;
-bool dPressed = false;
 bool running = true;
-HHOOK keyboardHook;
+bool isCode1 = true; // Flag to determine which code is running
 
 // Function declarations
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void InitNotifyIconData(HWND hwnd);
-
-// Function for Code 1
-void RunCode1()
-{
-    // Create a named mutex
-    HANDLE hMutex = CreateMutex(NULL, TRUE, TEXT("SnapKeyMutex"));
-    if (GetLastError() == ERROR_ALREADY_EXISTS)
-    {
-        MessageBox(NULL, TEXT("SnapKey is already running!"), TEXT("Error"), MB_ICONINFORMATION | MB_OK);
-        return;
-    }
-
-    // Create a window class
-    WNDCLASSEX wc = { 0 };
-    wc.cbSize = sizeof(WNDCLASSEX);
-    wc.lpfnWndProc = WndProc;
-    wc.hInstance = GetModuleHandle(NULL);
-    wc.lpszClassName = TEXT("SnapKeyClass");
-
-    if (!RegisterClassEx(&wc)) {
-        MessageBox(NULL, TEXT("Window Registration Failed!"), TEXT("Error"), MB_ICONEXCLAMATION | MB_OK);
-        ReleaseMutex(hMutex);
-        CloseHandle(hMutex);
-        return;
-    }
-
-    // Create a window
-    HWND hwnd = CreateWindowEx(
-        0,
-        wc.lpszClassName,
-        TEXT("SnapKey"),
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, 240, 120,
-        NULL, NULL, wc.hInstance, NULL);
-
-    if (hwnd == NULL) {
-        MessageBox(NULL, TEXT("Window Creation Failed!"), TEXT("Error"), MB_ICONEXCLAMATION | MB_OK);
-        ReleaseMutex(hMutex);
-        CloseHandle(hMutex);
-        return;
-    }
-
-    // Initialize and add the system tray icon
-    InitNotifyIconData(hwnd);
-
-    // Set the hook
-    hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
-    if (hHook == NULL)
-    {
-        MessageBox(NULL, TEXT("Failed to install hook!"), TEXT("Error"), MB_ICONEXCLAMATION | MB_OK);
-        ReleaseMutex(hMutex); // Release the mutex before exiting
-        CloseHandle(hMutex); // Close the handle
-        return;
-    }
-
-    // Message loop
-    MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0))
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-
-    // Unhook the hook
-    UnhookWindowsHookEx(hHook);
-
-    // Remove the system tray icon
-    Shell_NotifyIcon(NIM_DELETE, &nid);
-
-    // Release and close the mutex
-    ReleaseMutex(hMutex);
-    CloseHandle(hMutex);
-}
-
-// Function for Code 2
-void RunCode2()
-{
-    // Set the keyboard hook for Code 2
-    keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
-    if (keyboardHook == NULL)
-    {
-        std::cout << "Failed to install keyboard hook!" << std::endl;
-        return;
-    }
-
-    std::cout << "Keyboard hook installed. Press Ctrl + Q to exit." << std::endl;
-
-    MSG msg;
-    while (running && GetMessage(&msg, NULL, 0, 0))
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-
-    UnhookWindowsHookEx(keyboardHook);
-}
+void RunCode1();
+void RunCode2();
+BOOL WINAPI ConsoleHandler(DWORD signal);
 
 void handleKeyDown(int keyCode)
 {
@@ -151,7 +54,7 @@ void handleKeyDown(int keyCode)
 
                 INPUT input = { 0 };
                 input.type = INPUT_KEYBOARD;
-                input.ki.wVk = previousKey;
+                input.ki.wVk = static_cast<WORD>(previousKey);
                 input.ki.dwFlags = KEYEVENTF_KEYUP;
                 SendInput(1, &input, sizeof(INPUT));
             }
@@ -175,7 +78,7 @@ void handleKeyUp(int keyCode)
 
                 INPUT input = { 0 };
                 input.type = INPUT_KEYBOARD;
-                input.ki.wVk = activeKey;
+                input.ki.wVk = static_cast<WORD>(activeKey);
                 SendInput(1, &input, sizeof(INPUT));
             }
         }
@@ -188,117 +91,160 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
     {
         KBDLLHOOKSTRUCT* kbdStruct = (KBDLLHOOKSTRUCT*)lParam;
         DWORD wVirtKey = kbdStruct->vkCode;
-        DWORD wScanCode = kbdStruct->scanCode;
+        WORD wScanCode = static_cast<WORD>(kbdStruct->scanCode);
 
-        if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
+        if (isCode1)
         {
-            if (wVirtKey == 'A')
+            if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
             {
-                aPressed = true;
-                if (dPressed)
-                {
-                    keybd_event('D', wScanCode, KEYEVENTF_KEYUP, 0);
-                }
+                handleKeyDown(wVirtKey);
             }
-            else if (wVirtKey == 'D')
+            else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP)
             {
-                dPressed = true;
-                if (aPressed)
-                {
-                    keybd_event('A', wScanCode, KEYEVENTF_KEYUP, 0);
-                }
-            }
-            else if (wVirtKey == 'Q' && GetAsyncKeyState(VK_CONTROL) & 0x8000)
-            {
-                running = false;
-                PostQuitMessage(0);
+                handleKeyUp(wVirtKey);
             }
         }
-        else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP)
+        else // Code 2
         {
-            if (wVirtKey == 'A')
+            if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
             {
-                aPressed = false;
-                if (dPressed)
+                if (wVirtKey == 'A')
                 {
+                    keyStates['A'].pressed = true;
+                    if (keyStates['D'].pressed)
+                    {
+                        keybd_event('D', wScanCode, KEYEVENTF_KEYUP, 0);
+                    }
+                    keybd_event('A', wScanCode, 0, 0);
+                }
+                else if (wVirtKey == 'D')
+                {
+                    keyStates['D'].pressed = true;
+                    if (keyStates['A'].pressed)
+                    {
+                        keybd_event('A', wScanCode, KEYEVENTF_KEYUP, 0);
+                    }
                     keybd_event('D', wScanCode, 0, 0);
                 }
             }
-            else if (wVirtKey == 'D')
+            else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP)
             {
-                dPressed = false;
-                if (aPressed)
+                if (wVirtKey == 'A')
                 {
-                    keybd_event('A', wScanCode, 0, 0);
+                    keyStates['A'].pressed = false;
+                    if (keyStates['D'].pressed)
+                    {
+                        keybd_event('D', wScanCode, 0, 0);
+                    }
+                }
+                else if (wVirtKey == 'D')
+                {
+                    keyStates['D'].pressed = false;
+                    if (keyStates['A'].pressed)
+                    {
+                        keybd_event('A', wScanCode, 0, 0);
+                    }
                 }
             }
         }
-    }
 
-    return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
-}
-
-void InitNotifyIconData(HWND hwnd)
-{
-    memset(&nid, 0, sizeof(NOTIFYICONDATA));
-
-    nid.cbSize = sizeof(NOTIFYICONDATA);
-    nid.hWnd = hwnd;
-    nid.uID = ID_TRAY_APP_ICON;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-    nid.uCallbackMessage = WM_TRAYICON;
-
-    nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-    lstrcpy(nid.szTip, TEXT("SnapKey"));
-
-    Shell_NotifyIcon(NIM_ADD, &nid);
-}
-
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
-    switch (msg)
-    {
-    case WM_TRAYICON:
-        if (lParam == WM_RBUTTONDOWN)
+        if (wVirtKey == 'Q' && GetAsyncKeyState(VK_CONTROL) & 0x8000)
         {
-            POINT curPoint;
-            GetCursorPos(&curPoint);
-            SetForegroundWindow(hwnd);
-
-            HMENU hMenu = CreatePopupMenu();
-            AppendMenu(hMenu, MF_STRING, ID_TRAY_EXIT_CONTEXT_MENU_ITEM, TEXT("Exit SnapKey"));
-
-            TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, curPoint.x, curPoint.y, 0, hwnd, NULL);
-            DestroyMenu(hMenu);
-        }
-        break;
-
-    case WM_COMMAND:
-        if (LOWORD(wParam) == ID_TRAY_EXIT_CONTEXT_MENU_ITEM)
-        {
+            running = false;
             PostQuitMessage(0);
         }
-        break;
-
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-
-    default:
-        return DefWindowProc(hwnd, msg, wParam, lParam);
     }
-    return 0;
+
+    return CallNextHookEx(hHook, nCode, wParam, lParam);
+}
+
+// ... (keep InitNotifyIconData and WndProc as they were)
+
+void RunCode1()
+{
+    isCode1 = true;
+    // Create a named mutex
+    HANDLE hMutex = CreateMutex(NULL, TRUE, TEXT("SnapKeyMutex"));
+    if (GetLastError() == ERROR_ALREADY_EXISTS)
+    {
+        std::cout << "SnapKey is already running!" << std::endl;
+        return;
+    }
+
+    // Set the hook
+    hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
+    if (hHook == NULL)
+    {
+        std::cout << "Failed to install hook!" << std::endl;
+        ReleaseMutex(hMutex);
+        CloseHandle(hMutex);
+        return;
+    }
+
+    std::cout << "SnapKey (Code 1) is running. Press Ctrl+Q to exit." << std::endl;
+
+    // Message loop
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0) && running)
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    // Unhook the hook
+    UnhookWindowsHookEx(hHook);
+
+    // Release and close the mutex
+    ReleaseMutex(hMutex);
+    CloseHandle(hMutex);
+}
+
+void RunCode2()
+{
+    isCode1 = false;
+    // Set the keyboard hook for Code 2
+    hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
+    if (hHook == NULL)
+    {
+        std::cout << "Failed to install keyboard hook!" << std::endl;
+        return;
+    }
+
+    std::cout << "Keyboard hook installed. Press Ctrl + Q to exit." << std::endl;
+
+    MSG msg;
+    while (running && GetMessage(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    UnhookWindowsHookEx(hHook);
+}
+
+BOOL WINAPI ConsoleHandler(DWORD signal)
+{
+    if (signal == CTRL_C_EVENT)
+    {
+        std::cout << "Exiting SnapKey..." << std::endl;
+        running = false;
+        PostQuitMessage(0);
+        return TRUE;
+    }
+    return FALSE;
 }
 
 int main()
 {
     int choice;
 
-    cout << "Select an option:" << endl;
-    cout << "1. Run Code 1" << endl;
-    cout << "2. Run Code 2" << endl;
-    cout << "Enter your choice (1 or 2): ";
-    cin >> choice;
+    std::cout << "Select an option:" << std::endl;
+    std::cout << "1. Run Code 1" << std::endl;
+    std::cout << "2. Run Code 2" << std::endl;
+    std::cout << "Enter your choice (1 or 2): ";
+    std::cin >> choice;
+
+    SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 
     switch (choice)
     {
@@ -309,7 +255,7 @@ int main()
         RunCode2();
         break;
     default:
-        cout << "Invalid choice. Exiting." << endl;
+        std::cout << "Invalid choice. Exiting." << std::endl;
         return 1;
     }
 
