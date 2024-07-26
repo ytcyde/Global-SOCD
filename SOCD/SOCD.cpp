@@ -239,8 +239,8 @@ int main()
     int choice;
 
     std::cout << "Select an option:" << std::endl;
-    std::cout << "1. Run Code 1" << std::endl;
-    std::cout << "2. Run Code 2" << std::endl;
+    std::cout << "1. Run Wooting Mode (Recommended)" << std::endl;
+    std::cout << "2. Run Razer SnapTap mode" << std::endl;
     std::cout << "Enter your choice (1 or 2): ";
     std::cin >> choice;
 
