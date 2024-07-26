@@ -1,34 +1,29 @@
 #include <iostream>
 #include <windows.h>
 #include <shellapi.h>
-#include <fstream>
-#include <sstream>
-#include <string>
 #include <unordered_map>
+#include <atomic>
 
 #pragma comment(lib, "user32.lib")
 
-using namespace std;
+constexpr int ID_TRAY_APP_ICON = 1001;
+constexpr int ID_TRAY_EXIT_CONTEXT_MENU_ITEM = 3000;
+constexpr UINT WM_TRAYICON = WM_USER + 1;
 
-#define ID_TRAY_APP_ICON                1001
-#define ID_TRAY_EXIT_CONTEXT_MENU_ITEM  3000
-#define WM_TRAYICON                     (WM_USER + 1)
-
-struct KeyState
-{
-    bool pressed = false;
+struct KeyState {
+    std::atomic<bool> pressed{ false };
 };
 
 // Global variables
-int keyA_code = 'A';
-int keyD_code = 'D';
-unordered_map<int, KeyState> keyStates;
-int activeKey = 0;
-int previousKey = 0;
-HHOOK hHook = NULL;
-NOTIFYICONDATA nid;
-bool running = true;
-bool isCode1 = true; // Flag to determine which code is running
+constexpr int KEY_A = 'A';
+constexpr int KEY_D = 'D';
+std::unordered_map<int, KeyState> keyStates;
+std::atomic<int> activeKey{ 0 };
+std::atomic<int> previousKey{ 0 };
+HHOOK hHook = nullptr;
+NOTIFYICONDATA nid{};
+std::atomic<bool> running{ true };
+std::atomic<bool> isCode1{ true };
 
 // Function declarations
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
@@ -38,21 +33,17 @@ void RunCode1();
 void RunCode2();
 BOOL WINAPI ConsoleHandler(DWORD signal);
 
-void handleKeyDown(int keyCode)
-{
-    if (keyCode == keyA_code || keyCode == keyD_code)
-    {
+void handleKeyDown(int keyCode) {
+    if (keyCode == KEY_A || keyCode == KEY_D) {
         auto& keyState = keyStates[keyCode];
-        if (!keyState.pressed)
-        {
-            keyState.pressed = true;
-            if (activeKey == 0 || activeKey == keyCode) activeKey = keyCode;
-            else
-            {
-                previousKey = activeKey;
-                activeKey = keyCode;
-
-                INPUT input = { 0 };
+        if (!keyState.pressed.exchange(true)) {
+            int expected = 0;
+            if (activeKey.compare_exchange_strong(expected, keyCode) || activeKey.load() == keyCode) {
+                // Do nothing
+            }
+            else {
+                previousKey.store(activeKey.exchange(keyCode));
+                INPUT input = {};
                 input.type = INPUT_KEYBOARD;
                 input.ki.wVk = static_cast<WORD>(previousKey);
                 input.ki.dwFlags = KEYEVENTF_KEYUP;
@@ -62,21 +53,14 @@ void handleKeyDown(int keyCode)
     }
 }
 
-void handleKeyUp(int keyCode)
-{
-    if (keyCode == keyA_code || keyCode == keyD_code)
-    {
+void handleKeyUp(int keyCode) {
+    if (keyCode == KEY_A || keyCode == KEY_D) {
         auto& keyState = keyStates[keyCode];
         if (previousKey == keyCode && !keyState.pressed) previousKey = 0;
-        if (keyState.pressed)
-        {
-            keyState.pressed = false;
-            if (activeKey == keyCode && previousKey != 0)
-            {
-                activeKey = previousKey;
-                previousKey = 0;
-
-                INPUT input = { 0 };
+        if (keyState.pressed.exchange(false)) {
+            if (activeKey == keyCode && previousKey != 0) {
+                activeKey = previousKey.exchange(0);
+                INPUT input = {};
                 input.type = INPUT_KEYBOARD;
                 input.ki.wVk = static_cast<WORD>(activeKey);
                 SendInput(1, &input, sizeof(INPUT));
@@ -85,71 +69,54 @@ void handleKeyUp(int keyCode)
     }
 }
 
-LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
-{
-    if (nCode >= 0)
-    {
-        KBDLLHOOKSTRUCT* kbdStruct = (KBDLLHOOKSTRUCT*)lParam;
+LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode >= 0) {
+        const auto* kbdStruct = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
         DWORD wVirtKey = kbdStruct->vkCode;
         WORD wScanCode = static_cast<WORD>(kbdStruct->scanCode);
 
-        if (isCode1)
-        {
-            if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
-            {
+        if (isCode1) {
+            if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
                 handleKeyDown(wVirtKey);
             }
-            else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP)
-            {
+            else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
                 handleKeyUp(wVirtKey);
             }
         }
-        else // Code 2
-        {
-            if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
-            {
-                if (wVirtKey == 'A')
-                {
-                    keyStates['A'].pressed = true;
-                    if (keyStates['D'].pressed)
-                    {
-                        keybd_event('D', wScanCode, KEYEVENTF_KEYUP, 0);
+        else { // Code 2
+            if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
+                if (wVirtKey == KEY_A) {
+                    keyStates[KEY_A].pressed = true;
+                    if (keyStates[KEY_D].pressed) {
+                        keybd_event(KEY_D, wScanCode, KEYEVENTF_KEYUP, 0);
                     }
-                    keybd_event('A', wScanCode, 0, 0);
+                    keybd_event(KEY_A, wScanCode, 0, 0);
                 }
-                else if (wVirtKey == 'D')
-                {
-                    keyStates['D'].pressed = true;
-                    if (keyStates['A'].pressed)
-                    {
-                        keybd_event('A', wScanCode, KEYEVENTF_KEYUP, 0);
+                else if (wVirtKey == KEY_D) {
+                    keyStates[KEY_D].pressed = true;
+                    if (keyStates[KEY_A].pressed) {
+                        keybd_event(KEY_A, wScanCode, KEYEVENTF_KEYUP, 0);
                     }
-                    keybd_event('D', wScanCode, 0, 0);
+                    keybd_event(KEY_D, wScanCode, 0, 0);
                 }
             }
-            else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP)
-            {
-                if (wVirtKey == 'A')
-                {
-                    keyStates['A'].pressed = false;
-                    if (keyStates['D'].pressed)
-                    {
-                        keybd_event('D', wScanCode, 0, 0);
+            else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
+                if (wVirtKey == KEY_A) {
+                    keyStates[KEY_A].pressed = false;
+                    if (keyStates[KEY_D].pressed) {
+                        keybd_event(KEY_D, wScanCode, 0, 0);
                     }
                 }
-                else if (wVirtKey == 'D')
-                {
-                    keyStates['D'].pressed = false;
-                    if (keyStates['A'].pressed)
-                    {
-                        keybd_event('A', wScanCode, 0, 0);
+                else if (wVirtKey == KEY_D) {
+                    keyStates[KEY_D].pressed = false;
+                    if (keyStates[KEY_A].pressed) {
+                        keybd_event(KEY_A, wScanCode, 0, 0);
                     }
                 }
             }
         }
 
-        if (wVirtKey == 'Q' && GetAsyncKeyState(VK_CONTROL) & 0x8000)
-        {
+        if (wVirtKey == 'Q' && GetAsyncKeyState(VK_CONTROL) & 0x8000) {
             running = false;
             PostQuitMessage(0);
         }
@@ -160,21 +127,16 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 
 // ... (keep InitNotifyIconData and WndProc as they were)
 
-void RunCode1()
-{
+void RunCode1() {
     isCode1 = true;
-    // Create a named mutex
-    HANDLE hMutex = CreateMutex(NULL, TRUE, TEXT("WootingMutex"));
-    if (GetLastError() == ERROR_ALREADY_EXISTS)
-    {
+    HANDLE hMutex = CreateMutex(nullptr, TRUE, TEXT("WootingMutex"));
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
         std::cout << "Wooting mode is already running!" << std::endl;
         return;
     }
 
-    // Set the hook
-    hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
-    if (hHook == NULL)
-    {
+    hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, nullptr, 0);
+    if (hHook == nullptr) {
         std::cout << "Failed to install hook!" << std::endl;
         ReleaseMutex(hMutex);
         CloseHandle(hMutex);
@@ -183,38 +145,29 @@ void RunCode1()
 
     std::cout << "Wooting mode is running. Press Ctrl+Q to exit." << std::endl;
 
-    // Message loop
     MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0) && running)
-    {
+    while (GetMessage(&msg, nullptr, 0, 0) && running) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
 
-    // Unhook the hook
     UnhookWindowsHookEx(hHook);
-
-    // Release and close the mutex
     ReleaseMutex(hMutex);
     CloseHandle(hMutex);
 }
 
-void RunCode2()
-{
+void RunCode2() {
     isCode1 = false;
-    // Set the keyboard hook for Snap Key mode
-    hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(NULL), 0);
-    if (hHook == NULL)
-    {
+    hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(nullptr), 0);
+    if (hHook == nullptr) {
         std::cout << "Failed to install keyboard hook!" << std::endl;
         return;
     }
 
-    std::cout << "Razer SnapTap mode enabledd. Press Ctrl + Q to exit." << std::endl;
+    std::cout << "Razer SnapTap mode enabled. Press Ctrl + Q to exit." << std::endl;
 
     MSG msg;
-    while (running && GetMessage(&msg, NULL, 0, 0))
-    {
+    while (running && GetMessage(&msg, nullptr, 0, 0)) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
@@ -222,10 +175,8 @@ void RunCode2()
     UnhookWindowsHookEx(hHook);
 }
 
-BOOL WINAPI ConsoleHandler(DWORD signal)
-{
-    if (signal == CTRL_C_EVENT)
-    {
+BOOL WINAPI ConsoleHandler(DWORD signal) {
+    if (signal == CTRL_C_EVENT) {
         std::cout << "Exiting SOCD..." << std::endl;
         running = false;
         PostQuitMessage(0);
@@ -234,20 +185,18 @@ BOOL WINAPI ConsoleHandler(DWORD signal)
     return FALSE;
 }
 
-int main()
-{
+int main() {
     int choice;
 
-    std::cout << "Select an option:" << std::endl;
-    std::cout << "1. Run Wooting Mode (Recommended)" << std::endl;
-    std::cout << "2. Run Razer SnapTap mode" << std::endl;
-    std::cout << "Enter your choice (1 or 2): ";
+    std::cout << "Select an option:\n"
+        << "1. Run Wooting Mode (Recommended)\n"
+        << "2. Run Razer SnapTap mode\n"
+        << "Enter your choice (1 or 2): ";
     std::cin >> choice;
 
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 
-    switch (choice)
-    {
+    switch (choice) {
     case 1:
         RunCode1();
         break;
