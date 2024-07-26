@@ -31,7 +31,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void InitNotifyIconData(HWND hwnd);
 void RunCode1();
 void RunCode2();
-BOOL WINAPI ConsoleHandler(DWORD signal);
 
 void handleKeyDown(int keyCode) {
     if (keyCode == KEY_A || keyCode == KEY_D) {
@@ -116,10 +115,6 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
             }
         }
 
-        if (wVirtKey == 'Q' && GetAsyncKeyState(VK_CONTROL) & 0x8000) {
-            running = false;
-            PostQuitMessage(0);
-        }
     }
 
     return CallNextHookEx(hHook, nCode, wParam, lParam);
@@ -143,7 +138,7 @@ void RunCode1() {
         return;
     }
 
-    std::cout << "Wooting mode is running. Press Ctrl+Q to exit." << std::endl;
+    std::cout << "Wooting mode is running. Press Ctrl+C to exit." << std::endl;
 
     MSG msg;
     while (GetMessage(&msg, nullptr, 0, 0) && running) {
@@ -164,7 +159,7 @@ void RunCode2() {
         return;
     }
 
-    std::cout << "Razer SnapTap mode enabled. Press Ctrl + Q to exit." << std::endl;
+    std::cout << "Razer SnapTap mode enabled. Press Ctrl+C to exit." << std::endl;
 
     MSG msg;
     while (running && GetMessage(&msg, nullptr, 0, 0)) {
@@ -175,15 +170,6 @@ void RunCode2() {
     UnhookWindowsHookEx(hHook);
 }
 
-BOOL WINAPI ConsoleHandler(DWORD signal) {
-    if (signal == CTRL_C_EVENT) {
-        std::cout << "Exiting SOCD..." << std::endl;
-        running = false;
-        PostQuitMessage(0);
-        return TRUE;
-    }
-    return FALSE;
-}
 
 int main() {
     int choice;
@@ -194,7 +180,6 @@ int main() {
         << "Enter your choice (1 or 2): ";
     std::cin >> choice;
 
-    SetConsoleCtrlHandler(ConsoleHandler, TRUE);
 
     switch (choice) {
     case 1:
