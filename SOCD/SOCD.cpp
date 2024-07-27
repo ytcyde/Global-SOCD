@@ -211,33 +211,7 @@ void RunCode2() {
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    MessageBox(NULL, TEXT("Program started"), TEXT("Debug"), MB_OK);
-
-    WNDCLASSEX wc = { sizeof(WNDCLASSEX) };
-    wc.lpfnWndProc = WndProc;
-    wc.hInstance = hInstance;
-    wc.lpszClassName = TEXT("SOCDTrayClass");
-
-    if (!RegisterClassEx(&wc)) {
-        MessageBox(NULL, TEXT("Window Registration Failed!"), TEXT("Error!"), MB_ICONEXCLAMATION | MB_OK);
-        return 0;
-    }
-
-    MessageBox(NULL, TEXT("Window class registered"), TEXT("Debug"), MB_OK);
-
-    HWND hwnd = CreateWindowEx(0, TEXT("SOCDTrayClass"), TEXT("SOCD Tray"), WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, 240, 120, NULL, NULL, hInstance, NULL);
-
-    if (hwnd == NULL) {
-        MessageBox(NULL, TEXT("Window Creation Failed!"), TEXT("Error!"), MB_ICONEXCLAMATION | MB_OK);
-        return 0;
-    }
-
-    MessageBox(NULL, TEXT("Window created"), TEXT("Debug"), MB_OK);
-
-    InitNotifyIconData(hwnd);
-
-    // Instead of using std::cout and std::cin, use a dialog box
+ // Instead of using std::cout and std::cin, use a dialog box
     int choice = MessageBox(NULL, TEXT("Select an option:\n1. Run Wooting Mode (Recommended)\n2. Run Razer SnapTap mode"),
         TEXT("Choose Mode"), MB_YESNOCANCEL | MB_ICONQUESTION);
 
