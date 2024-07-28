@@ -1,10 +1,8 @@
-#include <iostream>
 #include <windows.h>
 #include <shellapi.h>
 #include <unordered_map>
 #include <atomic>
 #include <thread>
-#include <chrono>
 
 #pragma comment(lib, "user32.lib")
 
@@ -26,11 +24,12 @@ HHOOK hHook = nullptr;
 NOTIFYICONDATA nid{};
 std::atomic<bool> running{ true };
 std::atomic<bool> isCode1{ true };
+HWND g_hwnd = nullptr;
 
 // Function declarations
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-void InitNotifyIconData(HWND hwnd);
+void InitNotifyIconData();
 void RunCode1();
 void RunCode2();
 
@@ -121,10 +120,10 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     return CallNextHookEx(hHook, nCode, wParam, lParam);
 }
 
-void InitNotifyIconData(HWND hwnd) {
+void InitNotifyIconData() {
     memset(&nid, 0, sizeof(NOTIFYICONDATA));
     nid.cbSize = sizeof(NOTIFYICONDATA);
-    nid.hWnd = hwnd;
+    nid.hWnd = g_hwnd;
     nid.uID = ID_TRAY_APP_ICON;
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.uCallbackMessage = WM_TRAYICON;
@@ -150,12 +149,16 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_COMMAND:
         if (LOWORD(wParam) == ID_TRAY_EXIT_CONTEXT_MENU_ITEM) {
             running = false;
-            PostQuitMessage(0);
+            PostMessage(hwnd, WM_CLOSE, 0, 0);
+            return 0;
         }
         break;
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
     case WM_DESTROY:
         PostQuitMessage(0);
-        break;
+        return 0;
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
@@ -166,19 +169,19 @@ void RunCode1() {
     isCode1 = true;
     HANDLE hMutex = CreateMutex(nullptr, TRUE, TEXT("WootingMutex"));
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        std::cout << "Wooting mode is already running!" << std::endl;
+        MessageBox(NULL, TEXT("Wooting mode is already running!"), TEXT("Error"), MB_ICONERROR | MB_OK);
         return;
     }
 
     hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, nullptr, 0);
     if (hHook == nullptr) {
-        std::cout << "Failed to install hook!" << std::endl;
+        MessageBox(NULL, TEXT("Failed to install hook!"), TEXT("Error"), MB_ICONERROR | MB_OK);
         ReleaseMutex(hMutex);
         CloseHandle(hMutex);
         return;
     }
 
-    std::cout << "Wooting mode is running." << std::endl;
+    MessageBox(NULL, TEXT("Wooting mode is running."), TEXT("Info"), MB_ICONINFORMATION | MB_OK);
 
     MSG msg;
     while (GetMessage(&msg, nullptr, 0, 0) && running) {
@@ -195,14 +198,14 @@ void RunCode2() {
     isCode1 = false;
     hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, GetModuleHandle(nullptr), 0);
     if (hHook == nullptr) {
-        std::cout << "Failed to install keyboard hook!" << std::endl;
+        MessageBox(NULL, TEXT("Failed to install keyboard hook!"), TEXT("Error"), MB_ICONERROR | MB_OK);
         return;
     }
 
-    std::cout << "Razer SnapTap mode enabled." << std::endl;
+    MessageBox(NULL, TEXT("Razer SnapTap mode enabled."), TEXT("Info"), MB_ICONINFORMATION | MB_OK);
 
     MSG msg;
-    while (running && GetMessage(&msg, nullptr, 0, 0)) {
+    while (GetMessage(&msg, nullptr, 0, 0) && running) {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
@@ -211,11 +214,30 @@ void RunCode2() {
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
- // Instead of using std::cout and std::cin, use a dialog box
+    // Register window class
+    WNDCLASSEX wc = { 0 };
+    wc.cbSize = sizeof(WNDCLASSEX);
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = TEXT("SOCDCleaner");
+    RegisterClassEx(&wc);
+
+    // Create the window
+    g_hwnd = CreateWindowEx(0, TEXT("SOCDCleaner"), TEXT("SOCD Cleaner"),
+        WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
+        CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInstance, NULL);
+
+    if (!g_hwnd) {
+        MessageBox(NULL, TEXT("Window Creation Failed!"), TEXT("Error"), MB_ICONEXCLAMATION | MB_OK);
+        return 0;
+    }
+
+    // Initialize and add the tray icon
+    InitNotifyIconData();
+
+    // Instead of using std::cout and std::cin, use a dialog box
     int choice = MessageBox(NULL, TEXT("Select an option:\n1. Run Wooting Mode (Recommended)\n2. Run Razer SnapTap mode"),
         TEXT("Choose Mode"), MB_YESNOCANCEL | MB_ICONQUESTION);
-
-    MessageBox(NULL, TEXT("Choice made"), TEXT("Debug"), MB_OK);
 
     // Start the chosen mode in a separate thread
     std::thread modeThread;
@@ -231,9 +253,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 1;
     }
 
-    MessageBox(NULL, TEXT("Thread started"), TEXT("Debug"), MB_OK);
-
-    // Main message loop for the tray icon
+    // Main message loop
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
